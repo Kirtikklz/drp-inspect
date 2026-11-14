@@ -1,0 +1,15 @@
+[project]
+name = "drp-inspect"
+version = "0.1.0"
+description = "Which DaVinci Resolve version saved this .drp, and what's in it. No Resolve needed."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = []
+[project.scripts]
+drp-inspect = "drpinspect.cli:main"
+[project.urls]
+Homepage = "https://github.com/Kirtikklz/drp-inspect"
+"Convert for an older version" = "https://filedowngrade.com"
+[tool.setuptools]
+packages = ["drpinspect"]
