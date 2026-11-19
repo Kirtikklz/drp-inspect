@@ -23,7 +23,31 @@ class Limits:
     max_ratio: int = 200                    # unpacked/packed, zip-bomb guard
 
 
-SAFE_NAME = re.compile(r'^(?:[A-Za-z0-9_\-]+/)*[A-Za-z0-9_\-]+\.xml$')
+# Bin folders carry whatever the editor named them ("001_Bin 2", "000_DA MONTARE", "Città"), so any
+# printable name is allowed. Members are never written to disk, but we still refuse anything that
+# could mean a path elsewhere: absolute paths, backslashes, empty, "." or ".." segments, control characters.
+CONTROL = re.compile(r'[\x00-\x1f\x7f]')
+
+
+def safe_name(name: str) -> bool:
+    if not name.endswith('.xml') or len(name) > 1024 or name.startswith('/') or '\\' in name or CONTROL.search(name):
+        return False
+    parts = name.split('/')
+    return not any(p in ('', '.', '..') for p in parts) and ':' not in parts[0]
+
+
+def _real_name(info: zipfile.ZipInfo) -> str:
+    """Resolve writes UTF-8 names without setting the zip's UTF-8 flag, so Python reads them as cp437.
+    Recover the real name so it is written back as the same bytes."""
+    name = info.filename
+    if not info.flag_bits & 0x800 and not name.isascii():
+        try:
+            return name.encode('cp437').decode('utf-8')
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            pass
+    return name
+
+
 HEADER = re.compile(r'<!--DbAppVer="([^"]+)" DbPrjVer="(\d+)"-->')
 
 
@@ -50,10 +74,10 @@ def read(data: bytes, limits: Limits = Limits()) -> Drp:
     drp = Drp()
     total = 0
     for info in infos:
-        name = info.filename
+        name = _real_name(info)
         if name.endswith('/'):
             continue  # directory entry
-        if not SAFE_NAME.match(name) or '..' in name:
+        if not safe_name(name):
             raise ArchiveError(f"unexpected file in archive: {name[:80]!r}")
         if info.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
             raise ArchiveError("unsupported compression")
